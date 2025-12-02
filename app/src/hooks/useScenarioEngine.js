@@ -41,16 +41,24 @@ const BASE_SCENARIOS = {
       text: 'Situation → Task → Action → Result. Focus on learning.'
     }
   ],
-  dating: [
+  negotiation: [
     {
       trigger: 2200,
       type: 'transcript',
-      text: 'Date: I really love hiking and the outdoors.'
+      text: 'Counterparty: The timeline is too aggressive for our team.'
     },
     {
       trigger: 3200,
+      type: 'alert',
+      title: 'Timeline Pushback',
+      content: 'Resistance Detected',
+      action: 'Find win-win',
+      color: 'yellow'
+    },
+    {
+      trigger: 4200,
       type: 'suggestion',
-      text: 'Mention your Alps trip. Skip the MMO storyline.'
+      text: 'Ask: "What would need to change for this timeline to work? Can we phase the deliverables?"'
     }
   ]
 };

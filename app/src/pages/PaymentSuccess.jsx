@@ -15,16 +15,22 @@ export const PaymentSuccess = () => {
       return;
     }
 
-    // Verify payment status
+    // Verify payment status and trigger server-side upgrade
     const verifyPayment = async () => {
       try {
         const response = await fetch(`/api/stripe-verify-session?session_id=${sessionId}`);
-        if (response.ok) {
+        if (!response.ok) {
+          setStatus('error');
+          return;
+        }
+
+        const data = await response.json();
+        if (data?.success) {
           setStatus('success');
-          // Refresh user profile after a short delay
+          // Give Firestore listener a moment to pick up new plan, then go back to the app
           setTimeout(() => {
-            window.location.href = '/';
-          }, 3000);
+            window.location.href = '/app';
+          }, 2000);
         } else {
           setStatus('error');
         }

@@ -47,7 +47,7 @@ import { GhostClient } from './services/ghostClient.js';
 import { SpeechToText } from './services/speechToText.js';
 import { persistSessionEvent, createSession, updateSession } from './services/sessionStore.js';
 
-const MODES = ['sales', 'interview', 'dating'];
+const MODES = ['sales', 'interview', 'negotiation'];
 
 const connectionCopy = {
   connected: 'Low Latency',
@@ -60,7 +60,8 @@ const HUD_POSITION_OPTIONS = [
   { value: 'top-left', label: 'Top Left' },
   { value: 'top-right', label: 'Top Right' },
   { value: 'bottom-left', label: 'Bottom Left' },
-  { value: 'bottom-right', label: 'Bottom Right' }
+  { value: 'bottom-right', label: 'Bottom Right' },
+  { value: 'free', label: 'Free Position' }
 ];
 
 function App() {
@@ -85,7 +86,7 @@ function App() {
     isActionInFlight
   } = useFirebaseAuth();
   const { profile: userProfile, planDetails } = useUserProfile(user?.uid);
-  const { canUseTTSWhispers, canAccessSessionReplay, canExportSessions, canAccessAnalytics } = useEntitlements(planDetails);
+  const { canUseTTSWhispers, canAccessSessionReplay, canExportSessions, canAccessAnalytics } = useEntitlements(planDetails, user);
   const { track, trackSession, trackFeature } = useAnalytics(user?.uid);
   
   // State for muting whispers (must be declared before useTextToSpeech)
@@ -116,6 +117,45 @@ function App() {
     sessionId: sessionIdRef.current,
     enabled: !!sessionIdRef.current && !!user?.uid && !callId // Only use if not using Vapi
   });
+
+  // Handle Stripe payment success callback (fallback in case dedicated page is not mounted)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const pathname = window.location.pathname || '';
+    if (!pathname.endsWith('/payment-success')) return;
+
+    const params = new URLSearchParams(window.location.search || '');
+    const sessionIdFromUrl = params.get('session_id');
+    if (!sessionIdFromUrl) return;
+
+    (async () => {
+      try {
+        console.log('[App] Verifying Stripe session from URL:', sessionIdFromUrl);
+        const resp = await fetch(`/api/stripe-verify-session?session_id=${sessionIdFromUrl}`);
+        const text = await resp.text();
+        let data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          console.warn('[App] Non-JSON response from stripe-verify-session:', text?.slice(0, 200));
+        }
+        console.log('[App] Stripe verify response:', { ok: resp.ok, data });
+      } catch (err) {
+        console.error('[App] Stripe verify failed:', err);
+      } finally {
+        // Clean up URL back to /app without query params
+        try {
+          const url = new URL(window.location.href);
+          url.pathname = '/app';
+          url.search = '';
+          window.history.replaceState({}, '', url.toString());
+        } catch {
+          window.location.href = '/app';
+        }
+      }
+    })();
+  }, []);
   
   // Vapi call playback - listens to calls/{callId}/transcripts and calls/{callId}/suggestions
   const { transcript: vapiTranscript, suggestions: vapiSuggestions, isLoading: isVapiLoading } = useVapiCallPlayback({
@@ -145,8 +185,42 @@ function App() {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem('ghost-focus-mode') === 'true';
   });
+  // Speaker mode: 'listening' = process transcripts for coaching, 'speaking' = user is talking, don't process
+  const [speakerMode, setSpeakerMode] = useState(() => {
+    if (typeof window === 'undefined') return 'listening';
+    return window.localStorage.getItem('ghost-speaker-mode') || 'listening';
+  });
+  // Free drag position (stored as { top, left } in pixels)
+  const [hudFreePosition, setHudFreePosition] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const stored = window.localStorage.getItem('ghost-hud-free-position');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Validate the stored position
+        if (parsed && typeof parsed.top === 'number' && typeof parsed.left === 'number') {
+          return parsed;
+        }
+      } catch (e) {
+        console.warn('[HUD] Failed to parse free position:', e);
+      }
+    }
+    return null;
+  });
   const [hudPosition, setHudPosition] = useState(() => {
     if (typeof window === 'undefined') return 'bottom-right';
+    // If we have a free position, use 'free' mode
+    const stored = window.localStorage.getItem('ghost-hud-free-position');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.top === 'number' && typeof parsed.left === 'number') {
+          return 'free';
+        }
+      } catch (e) {
+        // Fall through to default
+      }
+    }
     return window.localStorage.getItem('ghost-hud-position') || 'bottom-right';
   });
   const [hudDragPosition, setHudDragPosition] = useState(null);
@@ -292,6 +366,28 @@ function App() {
   const paymentDisclosure = useDisclosure(false);
   const pricingDisclosure = useDisclosure(false);
   const playbooksDisclosure = useDisclosure(false);
+  const [paymentTargetPlan, setPaymentTargetPlan] = useState('founders'); // Track which plan user wants to purchase
+
+  // Check for checkout query parameter from landing page
+  useEffect(() => {
+    if (typeof window === 'undefined' || isAuthLoading) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const checkoutPlan = urlParams.get('checkout');
+    
+    if (checkoutPlan === 'starter' || checkoutPlan === 'founders') {
+      setPaymentTargetPlan(checkoutPlan);
+      // Wait a bit for auth to complete, then open payment modal
+      const timer = setTimeout(() => {
+        paymentDisclosure.open();
+        // Clean up URL
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthLoading, paymentDisclosure]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -335,8 +431,31 @@ function App() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('ghost-hud-position', hudPosition);
+      // Clear free position when using preset position
+      if (hudPosition !== 'free' && hudFreePosition) {
+        window.localStorage.removeItem('ghost-hud-free-position');
+        setHudFreePosition(null);
+      }
     }
-  }, [hudPosition]);
+  }, [hudPosition, hudFreePosition]);
+
+  // Save speaker mode to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('ghost-speaker-mode', speakerMode);
+    }
+  }, [speakerMode]);
+
+  // Save free position to localStorage and set position mode to 'free'
+  useEffect(() => {
+    if (typeof window !== 'undefined' && hudFreePosition) {
+      window.localStorage.setItem('ghost-hud-free-position', JSON.stringify(hudFreePosition));
+      // Set position mode to 'free' when using free positioning
+      if (hudPosition !== 'free') {
+        setHudPosition('free');
+      }
+    }
+  }, [hudFreePosition, hudPosition]);
   
   useEffect(() => {
     if (hudPinned) {
@@ -483,7 +602,7 @@ function App() {
   const hudTourSteps = [
     {
       title: 'Move & dock',
-      body: 'Press and hold the HUD header to drag it anywhere, or use the map pin icon to snap to a corner.'
+      body: 'Press and hold the HUD header to drag it anywhere on screen. Your position is saved automatically.'
     },
     {
       title: 'Stay stealthy',
@@ -511,6 +630,11 @@ function App() {
     return 'bottom-right';
   }, []);
 
+  // Save free position and keep it (no snapping)
+  const saveHudFreePosition = useCallback((top, left) => {
+    setHudFreePosition({ top, left });
+  }, []);
+
   const handleHudPointerDown = useCallback((event) => {
     if (event.button !== 0) return;
     if (event.target instanceof HTMLElement && event.target.closest('button')) {
@@ -533,6 +657,7 @@ function App() {
 
   useEffect(() => {
     if (!isHudDragging) return;
+    const topSpacing = 80; // prevents overlapping navbar
     const handleMove = (event) => {
       if (!hudDragStartRef.current) return;
       const { offsetX, offsetY, width, height } = hudDragStartRef.current;
@@ -546,8 +671,17 @@ function App() {
     };
     const handleUp = (event) => {
       setIsHudDragging(false);
+      if (hudDragStartRef.current) {
+        const { offsetX, offsetY, width, height } = hudDragStartRef.current;
+        const maxLeft = window.innerWidth - width - 12;
+        const minTop = topSpacing;
+        const maxTop = window.innerHeight - height - 12;
+        const finalTop = Math.min(Math.max(event.clientY - offsetY, minTop), maxTop);
+        const finalLeft = Math.min(Math.max(event.clientX - offsetX, 12), maxLeft);
+        // Save the free position (no snapping to corners)
+        saveHudFreePosition(finalTop, finalLeft);
+      }
       setHudDragPosition(null);
-      setHudPosition(determineHudPositionFromPoint(event.clientX, event.clientY));
       hudDragStartRef.current = null;
     };
     window.addEventListener('pointermove', handleMove);
@@ -556,7 +690,7 @@ function App() {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
     };
-  }, [isHudDragging, determineHudPositionFromPoint]);
+  }, [isHudDragging, saveHudFreePosition]);
 
   const handleGlobalHotkey = useCallback((event) => {
     if (!event.ctrlKey || !event.shiftKey) return;
@@ -599,6 +733,14 @@ function App() {
               accountDisclosure.open(); // Open upgrade modal if whispers are gated
             }
             break;
+      case 'KeyS':
+        event.preventDefault();
+        setSpeakerMode(prev => {
+          const next = prev === 'listening' ? 'speaking' : 'listening';
+          trackFeature('speaker_mode', next, { source: 'hotkey' });
+          return next;
+        });
+        break;
       default:
         break;
     }
@@ -611,6 +753,8 @@ function App() {
 
   const hudBasePositionStyle = hudDragPosition
     ? { top: hudDragPosition.top, left: hudDragPosition.left }
+    : hudFreePosition
+    ? { top: hudFreePosition.top, left: hudFreePosition.left }
     : getHudPositionStyle(hudPosition);
 
   const hudContainerStyle = {
@@ -709,14 +853,15 @@ function App() {
     }
   }, [selectedPlaybookId]);
   const mode = parameterSettings.mode || 'sales';
-  const knowledgeBaseLimit = planDetails?.entitlements?.kbLimit ?? 0;
+  const knowledgeBaseSizeLimit = planDetails?.entitlements?.kbSizeLimit ?? 0;
   const {
     documents,
     uploadDocument,
     removeDocument,
     limitReached: knowledgeLimitReached,
-    maxDocuments: knowledgeMaxDocuments
-  } = useKnowledgeBase(user?.uid, { maxDocuments: knowledgeBaseLimit });
+    totalSize: knowledgeTotalSize,
+    maxSizeBytes: knowledgeMaxSizeBytes
+  } = useKnowledgeBase(user?.uid, { maxSizeBytes: knowledgeBaseSizeLimit });
 
   const visualizerBars = useMemo(
     () =>
@@ -820,14 +965,19 @@ function App() {
         return;
       }
 
-      // NOTE: For testing/demo purposes, we process both "You" and "Them" transcripts
-      // In production, only "Them" (customer) should be processed
+      // CRITICAL: Only process transcripts when in "listening" mode
+      // When user is speaking, don't generate coaching cues (they're talking, not listening)
+      if (speakerMode !== 'listening') {
+        console.log('[App] ⏸️ Skipping transcript processing - user is speaking (speakerMode:', speakerMode, ')');
+        return;
+      }
+
+      // Only process "Them" (customer) transcripts for coaching cues
       // "You" transcripts are the Ghost user speaking, "Them" is the customer
-      // For now, process all transcripts to generate coaching cues during testing
-      // TODO: Uncomment the line below for production: `if (speaker !== 'Them') return;`
-      // if (speaker !== 'Them') {
-      //   return;
-      // }
+      if (speaker !== 'Them') {
+        console.log('[App] ⏸️ Skipping transcript processing - speaker is not "Them" (speaker:', speaker, ')');
+        return;
+      }
 
       try {
         console.log('[App] Processing transcript for coaching:', { text, speaker, callId: currentCallId });
@@ -870,7 +1020,7 @@ function App() {
         console.error('[App] Error processing transcript:', error);
       }
     },
-    [callId] // Keep in deps for consistency, but we use ref for actual value
+    [callId, speakerMode] // Keep in deps for consistency, but we use ref for actual value
   );
 
   // Helper function to check if a transcript is actually a coaching cue being picked up by mic
@@ -925,6 +1075,10 @@ function App() {
         if (event.status === 'connected' && event.callId) {
           setCallId(event.callId);
           callIdRef.current = event.callId; // Update ref immediately
+          // Store in localStorage for HUD overlay to access
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem('ghost-active-callId', event.callId);
+          }
           console.log('[App] ✅ Vapi callId captured from status event:', event.callId);
           
           // Store playbookId in call document for webhook access
@@ -965,6 +1119,40 @@ function App() {
         const allSuggestions = vapiSuggestions.length > 0 ? vapiSuggestions : firestoreSuggestions;
         if (isCoachingCueTranscript(event.text, allSuggestions)) {
           console.log('[App] 🚫 Blocked coaching cue from appearing in transcript:', event.text);
+          return; // Don't add to transcript
+        }
+        
+        // CRITICAL: Filter out filler words/acknowledgments that assistant might generate
+        // These are often "Em", "eh", "uh", "um", etc. that slip through despite silent mode
+        const normalizedText = event.text.trim().toLowerCase();
+        const fillerWords = [
+          'em', 'eh', 'uh', 'um', 'hmm', 'mhm', 'mm', 'huh',
+          'ok', 'okay', 'yeah', 'yes', 'yep', 'yup', 'sure',
+          'right', 'alright', 'got it', 'i see', 'i understand',
+          'thanks', 'thank you', 'no problem', 'sounds good',
+          'hi', 'what', 'how', 'why', 'when', 'where', 'who', 'whom', 
+          'whose', 'which', 'that', 'this', 'these', 'those', 'it', 'they', 
+          'them', 'his', 'her', 'its', 'their', 'who\'s', 'what\'s', 'how\'s', 
+          'where\'s', 'who\'s', 'what\'s', 'how\'s', 'why\'s', 'when\'s', 'where\'s', 
+          '...', '..', '.', '', 'ehm', 'ehm', 'uhm', 'hm',
+        ];
+        
+        const isFillerWord = fillerWords.some(filler => {
+          if (normalizedText === filler) return true;
+          if (normalizedText.startsWith(filler + ' ') || 
+              normalizedText.startsWith(filler + '.') ||
+              normalizedText.startsWith(filler + ',') ||
+              normalizedText.startsWith(filler + '!') ||
+              normalizedText.startsWith(filler + '?')) return true;
+          return false;
+        });
+        
+        // Also filter very short transcripts (1-3 characters) that are likely filler sounds
+        const isVeryShortFiller = event.text.trim().length <= 3 && 
+                                   /^[a-z]{1,3}[.,!?]*$/i.test(event.text.trim());
+        
+        if (isFillerWord || isVeryShortFiller) {
+          console.log('[App] 🚫 Blocked filler word/acknowledgment from appearing in transcript:', event.text);
           return; // Don't add to transcript
         }
         
@@ -1010,6 +1198,10 @@ function App() {
           setConnectionStatus('disconnected');
           setCallId(null); // Clear callId when call ends
           callIdRef.current = null; // Also clear ref
+          // Clear from localStorage
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem('ghost-active-callId');
+          }
         }
         return;
       }
@@ -1099,23 +1291,39 @@ function App() {
             }
           },
           onError: (error) => {
-            console.warn('Speech-to-text error:', error);
-            const friendlyMessages = {
-              'no-speech': 'We could not hear any audio. Make sure your microphone is unmuted.',
-              'audio-capture': 'Microphone is unavailable. Allow mic access in your browser settings.',
-              'not-allowed': 'Microphone permission denied. Please allow access and restart Ghost.',
-              'network': 'Network issue interrupted speech recognition.'
-            };
-            if (error.type === 'not_supported') {
-              addSystemMessage('Mic: Browser does not support speech recognition. Using passive mode.');
-              showAudioWarning('This browser does not support live speech recognition. Ghost will rely on Vapi transcripts.');
+            // Suppress network errors - they're common and Vapi handles transcription
+            if (error.message === 'network') {
+              // Don't log or show network errors - Vapi is the primary transcription source
               return;
             }
+            
+            // Suppress no-speech errors - they're too frequent
+            if (error.message === 'no-speech') {
+              return;
+            }
+            
+            // Only log/show non-network errors
+            if (error.message !== 'network' && error.message !== 'no-speech') {
+              console.warn('[App] Speech-to-text error:', error);
+            }
+            
+            const friendlyMessages = {
+              'audio-capture': 'Microphone is unavailable. Allow mic access in your browser settings.',
+              'not-allowed': 'Microphone permission denied. Please allow access and restart Ghost.'
+            };
+            
+            if (error.type === 'not_supported') {
+              // Don't show message - this is expected in many browsers
+              return;
+            }
+            
             const now = Date.now();
             if (now - sttErrorAtRef.current > 4000) {
               const friendly = friendlyMessages[error.message] || error.message || 'Microphone issue detected.';
-              addSystemMessage(`Mic: ${friendly}`);
-              sttErrorAtRef.current = now;
+              if (friendlyMessages[error.message]) {
+                addSystemMessage(`Mic: ${friendly}`);
+                sttErrorAtRef.current = now;
+              }
             }
             if (friendlyMessages[error.message]) {
               showAudioWarning(`${friendlyMessages[error.message]} We'll keep trying in the background.`);
@@ -1300,6 +1508,21 @@ function App() {
                     <span className="hidden sm:inline ml-1">Replay</span>
                   </Button>
                 )}
+                {window.electronAPI && (
+                  <Button
+                    variant="secondary"
+                    className="text-xs px-2 sm:px-3 py-1 flex items-center gap-1"
+                    onClick={() => {
+                      if (window.electronAPI?.reopenHud) {
+                        window.electronAPI.reopenHud();
+                      }
+                    }}
+                    title="Reopen floating HUD window"
+                  >
+                    <Activity className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">HUD</span>
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   className="text-xs px-2 sm:px-3 py-1 flex items-center gap-1"
@@ -1349,23 +1572,58 @@ function App() {
                 </p>
               </div>
 
-              <Button
-                onClick={isActive ? handleStop : handleStart}
-                variant={isActive ? 'danger' : 'primary'}
-                className="w-full sm:w-32 h-12 sm:h-12 text-base sm:text-lg shrink-0 touch-manipulation min-h-[48px] sm:min-h-0"
-                disabled={!isActive && isAuthLoading}
-              >
-                {isActive ? (
-                  <>
-                    <MicOff className="w-5 h-5" /> STOP
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-5 h-5" />
-                    {isAuthLoading ? 'SYNCING' : 'START'}
-                  </>
+              <div className="flex items-center gap-2 shrink-0">
+                {isActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSpeakerMode(prev => {
+                        const next = prev === 'listening' ? 'speaking' : 'listening';
+                        trackFeature('speaker_mode', next);
+                        return next;
+                      });
+                    }}
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-2 ${
+                      speakerMode === 'listening'
+                        ? 'bg-green-600/20 text-green-400 border border-green-500/50 hover:bg-green-600/30'
+                        : 'bg-red-600/20 text-red-400 border border-red-500/50 hover:bg-red-600/30'
+                    }`}
+                    title={speakerMode === 'listening' ? 'Click when you start speaking (Ctrl+Shift+S)' : 'Click when you finish speaking (Ctrl+Shift+S)'}
+                  >
+                    {speakerMode === 'listening' ? (
+                      <>
+                        <Mic className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Listening</span>
+                        <span className="sm:hidden">Listen</span>
+                      </>
+                    ) : (
+                      <>
+                        <MicOff className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Speaking</span>
+                        <span className="sm:hidden">Speak</span>
+                      </>
+                    )}
+                  </button>
                 )}
-              </Button>
+                
+                <Button
+                  onClick={isActive ? handleStop : handleStart}
+                  variant={isActive ? 'danger' : 'primary'}
+                  className="w-full sm:w-32 h-12 sm:h-12 text-base sm:text-lg shrink-0 touch-manipulation min-h-[48px] sm:min-h-0"
+                  disabled={!isActive && isAuthLoading}
+                >
+                  {isActive ? (
+                    <>
+                      <MicOff className="w-5 h-5" /> STOP
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-5 h-5" />
+                      {isAuthLoading ? 'SYNCING' : 'START'}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </Card>
 
@@ -1377,6 +1635,25 @@ function App() {
                 {isActive && <Badge color="green" className="text-xs">RECORDING</Badge>}
                 {isActive && !sttSupported && <Badge color="gray" className="text-xs">MOCK MODE</Badge>}
                 {isActive && sttSupported && <Badge color="blue" className="text-xs">LIVE STT</Badge>}
+                {isActive && (
+                  <Badge 
+                    color={speakerMode === 'listening' ? 'green' : 'red'} 
+                    className="text-xs flex items-center gap-1"
+                    title={speakerMode === 'listening' ? 'Processing customer speech for coaching cues' : 'You are speaking - coaching cues paused'}
+                  >
+                    {speakerMode === 'listening' ? (
+                      <>
+                        <Mic className="w-3 h-3" />
+                        <span className="hidden sm:inline">Listening</span>
+                      </>
+                    ) : (
+                      <>
+                        <MicOff className="w-3 h-3" />
+                        <span className="hidden sm:inline">Speaking</span>
+                      </>
+                    )}
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -1635,6 +1912,8 @@ function App() {
       )}
 
       {/* Floating mini intel panel - Desktop */}
+      {/* Hide HUD in main app when Electron floating window is available */}
+      {!window.electronAPI && (
       <div
         ref={hudContainerRef}
         className="hidden md:block fixed z-40 select-none transition-opacity"
@@ -1810,22 +2089,35 @@ function App() {
                       key={option.value}
                       type="button"
                       onClick={() => {
+                        if (option.value === 'free') {
+                          // Keep current free position if it exists
+                          if (!hudFreePosition) {
+                            // If no free position, use current position as starting point
+                            const currentStyle = hudBasePositionStyle;
+                            if (currentStyle.top && currentStyle.left) {
+                              setHudFreePosition({ top: currentStyle.top, left: currentStyle.left });
+                            }
+                          }
+                        } else {
+                          // Clear free position when using preset
+                          setHudFreePosition(null);
+                        }
                         setHudPosition(option.value);
                         setShowHudDockMenu(false);
                         setHudDragPosition(null);
                       }}
                       className={`w-full text-left px-2 py-1 rounded border ${
-                        hudPosition === option.value
+                        (hudPosition === option.value || (option.value === 'free' && hudFreePosition))
                           ? 'border-blue-500/50 text-blue-200 bg-blue-500/10'
                           : 'border-gray-800 hover:border-gray-600 hover:text-white'
                       }`}
                     >
                       {option.label}
-                      {hudPosition === option.value && <span className="ml-2 text-blue-400">•</span>}
+                      {(hudPosition === option.value || (option.value === 'free' && hudFreePosition)) && <span className="ml-2 text-blue-400">•</span>}
                     </button>
                   ))}
                   <p className="text-[11px] text-gray-500 mt-1">
-                    Tip: Drag the HUD to snap it to corners instantly.
+                    Tip: Drag the HUD header to move it anywhere on screen. Position is saved automatically.
                   </p>
                   <button
                     type="button"
@@ -1860,14 +2152,14 @@ function App() {
               </div>
             </>
           )}
-        </div>
+          </div>
 
-        {showHudTour && activeHudTourStep && (
-          <div
-            className={`absolute w-96 pointer-events-auto ${
-              isHudNearTop ? 'top-full mt-3' : 'bottom-full mb-3'
-            }`}
-          >
+          {showHudTour && activeHudTourStep && (
+            <div
+              className={`absolute w-96 pointer-events-auto ${
+                isHudNearTop ? 'top-full mt-3' : 'bottom-full mb-3'
+              }`}
+            >
             <div className="rounded-2xl border border-blue-500/40 bg-gray-900/95 shadow-xl p-4 text-gray-200 space-y-3">
               <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-gray-400">
                 <span>HUD quick tour</span>
@@ -1904,10 +2196,11 @@ function App() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+            </div>
+          )}
         </div>
       </div>
+      )}
 
         <Suspense fallback={null}>
           <ParametersModal
@@ -1926,7 +2219,8 @@ function App() {
             onUpload={uploadDocument}
             onRemove={removeDocument}
             limitReached={knowledgeLimitReached}
-            maxDocuments={knowledgeMaxDocuments}
+            maxSizeBytes={knowledgeMaxSizeBytes}
+            totalSize={knowledgeTotalSize}
             planDetails={planDetails}
             onUpgradeClick={accountDisclosure.open}
           />
@@ -1965,12 +2259,12 @@ function App() {
             }}
             onUpgradeToFounders={() => {
               accountDisclosure.close();
-              paymentDisclosure.targetPlan = 'founders';
+              setPaymentTargetPlan('founders');
               paymentDisclosure.open();
             }}
             onUpgradeToStarter={() => {
               accountDisclosure.close();
-              paymentDisclosure.targetPlan = 'starter';
+              setPaymentTargetPlan('starter');
               paymentDisclosure.open();
             }}
             onViewPricing={() => {
@@ -1994,7 +2288,7 @@ function App() {
             onClose={paymentDisclosure.close}
             user={user}
             planDetails={planDetails}
-            targetPlan={paymentDisclosure.targetPlan || 'founders'}
+            targetPlan={paymentTargetPlan}
             onPaymentSuccess={() => {
               // Refresh user profile to get updated plan
               window.location.reload();
@@ -2010,12 +2304,12 @@ function App() {
             currentPlan={planDetails?.label?.toLowerCase()}
             onUpgradeToFounders={() => {
               pricingDisclosure.close();
-              paymentDisclosure.targetPlan = 'founders';
+              setPaymentTargetPlan('founders');
               paymentDisclosure.open();
             }}
             onUpgradeToStarter={() => {
               pricingDisclosure.close();
-              paymentDisclosure.targetPlan = 'starter';
+              setPaymentTargetPlan('starter');
               paymentDisclosure.open();
             }}
           />

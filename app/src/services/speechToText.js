@@ -8,6 +8,8 @@ export class SpeechToText {
     this.onError = onError || (() => {});
     this.recognition = null;
     this.isListening = false;
+    this.isStopped = false;
+    this.hasNetworkError = false;
   }
 
   start() {
@@ -55,20 +57,32 @@ export class SpeechToText {
     };
 
     this.recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
+      // Suppress network errors - they're common and not critical
+      // Only log non-network errors
+      if (event.error !== 'network' && event.error !== 'no-speech') {
+        console.warn('[SpeechToText] Error:', event.error);
+      }
+      
       this.onError({
         type: 'recognition_error',
         message: event.error,
         error: event
       });
+      
+      // Don't auto-restart on network errors - they'll just keep failing
+      if (event.error === 'network' || event.error === 'not-allowed') {
+        this.isStopped = true;
+        this.hasNetworkError = true;
+        return;
+      }
     };
 
     this.recognition.onend = () => {
       this.isListening = false;
-      // Auto-restart if it was stopped unexpectedly
-      if (!this.isStopped) {
+      // Auto-restart if it was stopped unexpectedly (but not on network errors)
+      if (!this.isStopped && !this.hasNetworkError) {
         setTimeout(() => {
-          if (!this.isStopped) {
+          if (!this.isStopped && !this.hasNetworkError) {
             this.start();
           }
         }, 100);
@@ -92,8 +106,13 @@ export class SpeechToText {
 
   stop() {
     this.isStopped = true;
+    this.hasNetworkError = false; // Reset on manual stop
     if (this.recognition && this.isListening) {
-      this.recognition.stop();
+      try {
+        this.recognition.stop();
+      } catch (error) {
+        // Ignore errors when stopping
+      }
       this.isListening = false;
     }
   }

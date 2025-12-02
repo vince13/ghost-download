@@ -22,7 +22,7 @@ export const PricingModal = ({
       features: [
         'Live coaching cues',
         'Real-time transcription',
-        '3 KB documents',
+        '5 KB knowledge base storage',
         '5 session replays',
         'Analytics dashboard',
         'TTS whispers',
@@ -30,7 +30,7 @@ export const PricingModal = ({
       ],
       limitations: [
         'Limited to 5 replays',
-        '3 KB documents max'
+        '5 KB storage max'
       ]
     },
     {
@@ -40,7 +40,7 @@ export const PricingModal = ({
       priceSubtext: 'Per month',
       features: [
         'Everything in Free',
-        '10 KB documents',
+        '5 MB knowledge base storage',
         '50 session replays',
         'Priority support',
         'Advanced analytics',
@@ -59,7 +59,7 @@ export const PricingModal = ({
       priceSubtext: 'One-time',
       features: [
         'Everything in Starter',
-        '20 KB documents',
+        '10 MB knowledge base storage',
         'Unlimited replays',
         'Lifetime access',
         'Priority support',

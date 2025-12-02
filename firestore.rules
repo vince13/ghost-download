@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // User profiles - users can read/write their own profile
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+      
+      // User sessions - users can read/write their own sessions
+      match /sessions/{sessionId} {
+        allow read, write: if isOwner(userId);
+        
+        // Session transcripts and suggestions
+        match /{document=**} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+      
+      // User analytics - users can read/write their own analytics
+      match /analytics/{analyticsId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // Knowledge base documents - users can read/write their own KB docs
+      match /knowledgeBase/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User settings - users can read/write their own settings
+      match /settings/{settingsId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // Custom playbooks - users can read/write their own playbooks
+      match /playbooks/{playbookId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // Vapi calls - users can read/write calls they created
+    // Note: Server-side writes (via webhook) use Firebase Admin SDK which bypasses these rules
+    match /calls/{callId} {
+      // Allow read if user is authenticated (we'll filter by userId in the query)
+      allow read: if isAuthenticated();
+      
+      // Allow write only from server (Admin SDK) or if user owns the call
+      // In practice, calls are created server-side, so this is mainly for reads
+      match /{document=**} {
+        allow read: if isAuthenticated();
+        allow write: if false; // Only server-side writes via Admin SDK
+      }
+    }
+  }
+}

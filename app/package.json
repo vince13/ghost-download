@@ -1,6 +1,8 @@
 {
   "name": "ghost",
   "version": "0.1.0",
+  "description": "Ghost Protocol - AI-powered real-time conversation coaching",
+  "author": "Ghost Protocol",
   "private": true,
   "type": "module",
   "main": "electron/main.js",
@@ -11,7 +13,15 @@
     "lint": "eslint .",
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && electron-builder",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:linux": "npm run build && electron-builder --linux",
+    "electron:build:all": "npm run build && electron-builder --mac --win --linux",
+    "copy-downloads": "node ../scripts/copy-downloads.js",
+    "build:mac:deploy": "npm run electron:build:mac && npm run copy-downloads",
+    "build:win:deploy": "npm run electron:build:win && npm run copy-downloads",
+    "build:linux:deploy": "npm run electron:build:linux && npm run copy-downloads"
   },
   "dependencies": {
     "@pinecone-database/pinecone": "^6.1.3",
@@ -22,6 +32,7 @@
     "lucide-react": "^0.453.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^7.9.6",
     "stripe": "^20.0.0"
   },
   "devDependencies": {

@@ -11,12 +11,10 @@ export default {
   ],
   mac: {
     category: 'public.app-category.productivity',
-    target: ['dmg', 'zip'],
-    icon: 'build/icon.icns',
-    hardenedRuntime: true,
-    gatekeeperAssess: false,
-    entitlements: 'build/entitlements.mac.plist',
-    entitlementsInherit: 'build/entitlements.mac.plist'
+    target: ['dmg', 'zip'], // Both DMG (installer) and ZIP (portable)
+    icon: 'build/icon.icns', // Optional - will use default Electron icon if not found
+    hardenedRuntime: false, // Disable for now to avoid code signing requirements
+    gatekeeperAssess: false
   },
   win: {
     target: ['nsis', 'portable'],

@@ -1,0 +1,4 @@
+# This directory contains Electron build files for download
+# Files are copied here from app/dist-electron/ after building
+# See scripts/copy-downloads.sh or scripts/copy-downloads.js
+

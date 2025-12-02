@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Edit2, Save, BookOpen } from 'lucide-react';
 import { Button, Badge } from './ui.jsx';
 
-const MODES = ['sales', 'interview', 'dating'];
+const MODES = ['sales', 'interview', 'negotiation'];
 
 export const PlaybooksModal = ({ isOpen, onClose, userId, playbooks, onCreate, onUpdate, onDelete, selectedPlaybookId, onSelect }) => {
   const [editingId, setEditingId] = useState(null);
