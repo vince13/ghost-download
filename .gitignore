@@ -2,8 +2,6 @@
 
 # dependencies
 /node_modules
-app/node_modules
-node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -33,6 +31,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+.env
 .env*
 
 # vercel
@@ -41,3 +40,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Electron build files (too large for Vercel, use GitHub Releases instead)
+app/dist/
+app/dist-electron/
+landing/public/downloads/*.dmg
+landing/public/downloads/*.zip
+landing/public/downloads/*.exe
+landing/public/downloads/*.AppImage
+landing/public/downloads/*.deb
