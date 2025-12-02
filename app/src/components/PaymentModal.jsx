@@ -14,12 +14,15 @@ export const PaymentModal = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [checkoutUrl, setCheckoutUrl] = useState(null);
+  const [billingInterval, setBillingInterval] = useState('monthly'); // 'monthly' or 'yearly'
 
   useEffect(() => {
     if (isOpen) {
       setError(null);
       setCheckoutUrl(null);
       setIsProcessing(false);
+      // Reset billing interval when modal opens
+      setBillingInterval('monthly');
     }
   }, [isOpen]);
 
@@ -48,16 +51,32 @@ export const PaymentModal = ({
         body: JSON.stringify({
           userId: user.uid,
           userEmail: user.email,
-          plan: planToPurchase
-        })
+          plan: planToPurchase,
+          billingInterval: planToPurchase === 'starter' ? billingInterval : undefined,
+        }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create checkout session');
-      }
+        // Try to parse JSON but don't crash if the body is HTML/text (e.g. Vercel 404/405 page)
+        let data = null;
+        const rawText = await response.text();
+        try {
+          data = rawText ? JSON.parse(rawText) : null;
+        } catch {
+          // Not JSON (likely an error HTML page)
+          data = null;
+        }
 
-      const data = await response.json();
+      if (!response.ok) {
+          const message =
+            (data && data.error) ||
+            (rawText && rawText.slice(0, 200)) ||
+            `Checkout failed with status ${response.status}`;
+          throw new Error(message);
+        }
+
+        if (!data) {
+          throw new Error('Unexpected empty response from checkout endpoint');
+      }
       
       if (data.url) {
         // Redirect to Stripe Checkout
@@ -81,7 +100,9 @@ export const PaymentModal = ({
   
   // Determine price based on targetPlan (what they're trying to purchase)
   const planToPurchase = targetPlan || 'founders'; // Default to founders if not specified
-  const price = planToPurchase === 'starter' ? 99 : 299; // Starter: $99/month, Founders: $299 one-time
+  const price = planToPurchase === 'starter' 
+    ? (billingInterval === 'yearly' ? 990 : 99) // $990/year or $99/month
+    : 299; // Founders: $299 one-time
   const currency = 'USD';
 
   return (
@@ -143,15 +164,54 @@ export const PaymentModal = ({
                 <Sparkles className="w-6 h-6 text-green-400" />
                 <h3 className="text-xl font-bold text-white">{planToPurchase === 'starter' ? 'Starter' : 'Founders Club'}</h3>
               </div>
-              <Badge color="green">{planToPurchase === 'starter' ? 'MONTHLY' : 'LIFETIME'}</Badge>
+              <Badge color="green">{planToPurchase === 'starter' ? (billingInterval === 'yearly' ? 'YEARLY' : 'MONTHLY') : 'LIFETIME'}</Badge>
             </div>
+            
+            {/* Billing interval selector for Starter */}
+            {planToPurchase === 'starter' && (
+              <div className="mb-4">
+                <div className="flex gap-2 p-1 bg-gray-800/50 rounded-lg border border-gray-700">
+                  <button
+                    type="button"
+                    onClick={() => setBillingInterval('monthly')}
+                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      billingInterval === 'monthly'
+                        ? 'bg-blue-600 text-white shadow-lg'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBillingInterval('yearly')}
+                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      billingInterval === 'yearly'
+                        ? 'bg-blue-600 text-white shadow-lg'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Yearly
+                    <span className="ml-1 text-xs text-green-400">(Save 17%)</span>
+                  </button>
+                </div>
+              </div>
+            )}
             
             <div className="mb-4">
               <div className="flex items-baseline gap-2 mb-2">
                 <span className="text-4xl font-bold text-white">${price}</span>
-                <span className="text-gray-400">{planToPurchase === 'starter' ? 'per month' : 'one-time'}</span>
+                <span className="text-gray-400">
+                  {planToPurchase === 'starter' 
+                    ? (billingInterval === 'yearly' ? 'per year' : 'per month')
+                    : 'one-time'}
+                </span>
               </div>
-              <p className="text-sm text-gray-400">{planToPurchase === 'starter' ? 'Cancel anytime' : 'No recurring fees, ever'}</p>
+              <p className="text-sm text-gray-400">
+                {planToPurchase === 'starter' 
+                  ? (billingInterval === 'yearly' ? 'Billed annually, cancel anytime' : 'Cancel anytime')
+                  : 'No recurring fees, ever'}
+              </p>
             </div>
 
             <ul className="space-y-2 text-sm text-gray-300">
@@ -163,7 +223,7 @@ export const PaymentModal = ({
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-                    <span>10 knowledge base documents</span>
+                    <span>5 MB knowledge base storage</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
@@ -184,34 +244,34 @@ export const PaymentModal = ({
                 </>
               ) : (
                 <>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
                     <span>Everything in Starter</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-                    <span>20 knowledge base documents</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-                    <span>Unlimited session replays</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                <span>10 MB knowledge base storage</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                <span>Unlimited session replays</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
                     <span>Lifetime access</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
                     <span>Priority support</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
                     <span>Concierge onboarding</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-                    <span>Founders Club badge</span>
-                  </li>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                <span>Founders Club badge</span>
+              </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
                     <span>No recurring fees</span>

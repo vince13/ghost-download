@@ -14,8 +14,13 @@ const STATUS_FLOW = ['pending', 'chunking', 'indexed'];
 
 export const useKnowledgeBase = (userId, options = {}) => {
   const [documents, setDocuments] = useState([]);
-  const maxDocuments =
-    typeof options.maxDocuments === 'number' ? options.maxDocuments : Number.POSITIVE_INFINITY;
+  // Support both old maxDocuments (for backward compatibility) and new maxSizeBytes
+  const maxSizeBytes =
+    typeof options.maxSizeBytes === 'number' 
+      ? options.maxSizeBytes 
+      : typeof options.maxDocuments === 'number'
+      ? Number.POSITIVE_INFINITY // Old API - treat as unlimited size if using document count
+      : Number.POSITIVE_INFINITY;
   const db = getFirestoreDb();
 
   const collectionRef = useMemo(() => {
@@ -50,11 +55,45 @@ export const useKnowledgeBase = (userId, options = {}) => {
     });
   }, [collectionRef]);
 
-  const limitReached = Number.isFinite(maxDocuments) && documents.length >= maxDocuments;
+  // Calculate total size of all documents
+  const totalSize = useMemo(() => {
+    return documents.reduce((sum, doc) => sum + (doc.size || 0), 0);
+  }, [documents]);
+
+  // Check if limit is reached based on total size
+  const limitReached = useMemo(() => {
+    if (!Number.isFinite(maxSizeBytes)) {
+      return false; // Unlimited
+    }
+    return totalSize >= maxSizeBytes;
+  }, [totalSize, maxSizeBytes]);
+
+  // Check if adding this file would exceed the limit
+  const wouldExceedLimit = (fileSize) => {
+    if (!Number.isFinite(maxSizeBytes)) {
+      return false; // Unlimited
+    }
+    return (totalSize + fileSize) > maxSizeBytes;
+  };
 
   const uploadDocument = async (file) => {
     if (limitReached) {
-      throw new Error('Knowledge base limit reached for your current plan.');
+      throw new Error('Knowledge base storage limit reached for your current plan.');
+    }
+
+    if (wouldExceedLimit(file.size)) {
+      const formatBytes = (bytes) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+      };
+      const remaining = maxSizeBytes - totalSize;
+      throw new Error(
+        `File size (${formatBytes(file.size)}) would exceed your plan's storage limit. ` +
+        `You have ${formatBytes(remaining)} remaining of ${formatBytes(maxSizeBytes)} total.`
+      );
     }
 
     const baseDoc = {
@@ -201,6 +240,9 @@ export const useKnowledgeBase = (userId, options = {}) => {
     uploadDocument,
     removeDocument,
     limitReached,
-    maxDocuments
+    totalSize,
+    maxSizeBytes,
+    // Legacy support
+    maxDocuments: Number.isFinite(maxSizeBytes) ? undefined : Number.POSITIVE_INFINITY
   };
 };

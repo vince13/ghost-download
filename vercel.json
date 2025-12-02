@@ -10,24 +10,31 @@
       "config": {
         "distDir": "dist"
       }
+    },
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
     }
   ],
-  "functions": {
-    "app/api/**/*.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/app/api/$1"
+      "dest": "/api/$1.js"
+    },
+    {
+      "src": "/app/payment-(success|cancel)",
+      "dest": "/app/index.html"
+    },
+    {
+      "src": "/payment-(success|cancel)",
+      "dest": "/app/index.html"
     },
     {
       "src": "/app",
       "dest": "/app/index.html"
     },
     {
-      "src": "/app/(?!api)(.*)",
+      "src": "/app/(.*)",
       "dest": "/app/$1"
     },
     {

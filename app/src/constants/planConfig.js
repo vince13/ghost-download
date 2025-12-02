@@ -2,6 +2,13 @@ export const PLAN_ORDER = ['free', 'starter', 'founders', 'enterprise'];
 
 const infinity = Number.POSITIVE_INFINITY;
 
+// KB size limits in bytes
+const KB_SIZE_LIMITS = {
+  FREE: 5 * 1024,        // 5 KB = 5,120 bytes
+  STARTER: 5 * 1024 * 1024,  // 5 MB = 5,242,880 bytes
+  FOUNDERS: 10 * 1024 * 1024, // 10 MB = 10,485,760 bytes
+};
+
 export const PLAN_DETAILS = {
   free: {
     label: 'Free',
@@ -10,7 +17,7 @@ export const PLAN_DETAILS = {
     badgeColor: 'blue',
     upgradeCta: 'Upgrade to unlock more features',
     entitlements: {
-      kbLimit: 3,
+      kbSizeLimit: KB_SIZE_LIMITS.FREE, // 5 KB total
       playbackLimit: 5,
       analyticsAccess: true,
       conciergeAccess: false,
@@ -25,7 +32,7 @@ export const PLAN_DETAILS = {
     badgeColor: 'green',
     upgradeCta: 'Upgrade to Founders Club for lifetime access',
     entitlements: {
-      kbLimit: 10,
+      kbSizeLimit: KB_SIZE_LIMITS.STARTER, // 5 MB total
       playbackLimit: 50,
       analyticsAccess: true,
       conciergeAccess: false,
@@ -40,7 +47,7 @@ export const PLAN_DETAILS = {
     badgeColor: 'green',
     upgradeCta: 'Contact us for enterprise solutions',
     entitlements: {
-      kbLimit: 20,
+      kbSizeLimit: KB_SIZE_LIMITS.FOUNDERS, // 10 MB total
       playbackLimit: infinity,
       analyticsAccess: true,
       conciergeAccess: true,
@@ -55,7 +62,7 @@ export const PLAN_DETAILS = {
     badgeColor: 'green',
     upgradeCta: 'Contact sales for custom pricing',
     entitlements: {
-      kbLimit: infinity,
+      kbSizeLimit: infinity, // Unlimited
       playbackLimit: infinity,
       analyticsAccess: true,
       conciergeAccess: true,

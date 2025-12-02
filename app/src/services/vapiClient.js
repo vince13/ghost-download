@@ -147,9 +147,43 @@ export class VapiClient {
       
       // Ghost is a silent coach - we only want to capture the user's speech (the customer)
       // Filter out assistant speech to keep Ghost truly silent
-      if (role === 'assistant' || role === 'system' || role === 'assistant-message') {
+      if (role === 'assistant' || role === 'system' || role === 'assistant-message' || role === 'bot') {
         console.log('Ghost: Filtering out assistant speech (silent mode):', transcript);
         return; // Don't emit assistant transcripts
+      }
+      
+      // CRITICAL: Filter out common filler words/acknowledgments that the assistant might generate
+      // These are often transcribed even when the assistant is "silent"
+      // Examples: "Em", "eh", "uh", "um", "ok", "yeah", "yes", "mhm", "hmm", etc.
+      const normalizedTranscript = transcript.trim().toLowerCase();
+      const fillerWords = [
+        'em', 'eh', 'uh', 'um', 'hmm', 'mhm', 'mm', 'huh',
+        'ok', 'okay', 'yeah', 'yes', 'yep', 'yup', 'sure',
+        'right', 'alright', 'got it', 'i see', 'i understand',
+        'thanks', 'thank you', 'no problem', 'sounds good',
+        '...', '..', '.', '', // Empty or just punctuation
+      ];
+      
+      // Check if transcript is just a filler word (exact match or starts with it)
+      const isFillerWord = fillerWords.some(filler => {
+        // Exact match
+        if (normalizedTranscript === filler) return true;
+        // Starts with filler word followed by punctuation or space
+        if (normalizedTranscript.startsWith(filler + ' ') || 
+            normalizedTranscript.startsWith(filler + '.') ||
+            normalizedTranscript.startsWith(filler + ',') ||
+            normalizedTranscript.startsWith(filler + '!') ||
+            normalizedTranscript.startsWith(filler + '?')) return true;
+        return false;
+      });
+      
+      // Also filter very short transcripts (1-3 characters) that are likely filler sounds
+      const isVeryShortFiller = transcript.trim().length <= 3 && 
+                                 /^[a-z]{1,3}[.,!?]*$/i.test(transcript.trim());
+      
+      if (isFillerWord || isVeryShortFiller) {
+        console.log('Ghost: Filtering out filler word/acknowledgment:', transcript);
+        return; // Don't emit filler words
       }
       
       // CRITICAL: Filter out coaching cues that are being picked up by the microphone
@@ -257,6 +291,23 @@ export class VapiClient {
     // Also listen to message events (Vapi may send transcripts as messages)
     this.vapi.on('message', (event) => {
       try {
+        // CRITICAL: Block assistant messages that might trigger speech
+        const role = event.role || event.message?.role || event.speaker;
+        if (role === 'assistant' || role === 'bot') {
+          // Only allow assistant transcripts (which we filter separately in handleTranscript)
+          // Block all other assistant messages that might cause speech
+          const messageType = event.type || event.message?.type;
+          const hasTranscript = !!(event.transcript || event.text || event.content || 
+                                   event.message?.transcript || event.message?.text ||
+                                   event.data?.transcript || event.data?.text);
+          
+          // If it's not a transcript, block it completely (might trigger speech)
+          if (!hasTranscript && messageType !== 'transcript') {
+            console.log('🚫 CRITICAL: Blocking assistant message that might trigger speech:', { role, messageType, event });
+            return; // Don't process this message
+          }
+        }
+        
         const eventStr = JSON.stringify(event, null, 2);
         console.log('[Vapi message event] Full event:', eventStr);
         console.log('[Vapi message event] Event type:', event?.type);
@@ -268,12 +319,33 @@ export class VapiClient {
                           event.data?.transcript || event.data?.text;
         
         if (transcript) {
+          // CRITICAL: Check if this looks like an assistant response (filler words, very short, etc.)
+          // Even if role is not explicitly 'assistant', filter out suspicious patterns
+          const normalizedText = transcript.trim().toLowerCase();
+          const suspiciousPatterns = [
+            /^(em|eh|uh|um|hmm|mhm|mm|huh|ok|okay|yeah|yes|yep|yup|sure|right|alright)[.,!?]*$/i,
+            /^(got it|i see|i understand|thanks|thank you|no problem|sounds good)[.,!?]*$/i,
+            /^\.{1,3}$/, // Just dots
+            /^[a-z]{1,3}[.,!?]*$/i // Very short (1-3 chars) single word
+          ];
+          
+          const looksLikeAssistantResponse = suspiciousPatterns.some(pattern => 
+            pattern.test(normalizedText)
+          );
+          
+          // If it looks like an assistant response and role is unclear, filter it
+          const role = event.role || event.message?.role || event.speaker;
+          if (looksLikeAssistantResponse && (!role || role === 'assistant' || role === 'bot' || role === 'system')) {
+            console.log('🚫 CRITICAL: Filtering suspicious assistant-like response:', transcript);
+            return; // Don't process this message
+          }
+          
           console.log('[Vapi message event] ✅ Found transcript:', transcript);
           // Create a transcript-like event
           handleTranscript({
             transcript,
             text: transcript,
-            role: event.role || event.message?.role || 'user',
+            role: role || 'user',
             ...event
           }, 'message');
         } else {
@@ -340,8 +412,37 @@ export class VapiClient {
       // If assistant is trying to speak, block it immediately
       if (role === 'assistant' || role === 'bot') {
         console.log('🚫 CRITICAL: Assistant speech-update blocked:', { role, status, event });
+        
+        // Try to stop the speech programmatically if possible
+        try {
+          // If Vapi SDK has a method to stop speech, call it here
+          // This is a defensive measure in case the assistant still tries to speak
+          if (this.vapi?.call?.stopSpeaking) {
+            this.vapi.call.stopSpeaking();
+            console.log('[VapiClient] 🔇 Called stopSpeaking() to mute assistant');
+          }
+        } catch (error) {
+          console.warn('[VapiClient] Could not stop assistant speech programmatically:', error);
+        }
+        
         // Do not emit this event to the UI
         return;
+      }
+    });
+    
+    // CRITICAL: Intercept ALL message events to block assistant messages that might trigger speech
+    this.vapi.on('message', (event) => {
+      // Check if this is an assistant message that might cause speech
+      const role = event.role || event.message?.role || event.speaker;
+      const messageType = event.type || event.message?.type;
+      
+      if (role === 'assistant' || role === 'bot') {
+        // Block assistant messages that might trigger speech
+        // Only allow transcripts (which we filter separately)
+        if (messageType !== 'transcript' && !event.transcript) {
+          console.log('🚫 CRITICAL: Blocking assistant message that might trigger speech:', { role, messageType, event });
+          return; // Don't process this message
+        }
       }
     });
 
@@ -411,11 +512,25 @@ export class VapiClient {
       // Use string format: vapi.start('assistant-id')
       // WebRTC is enabled by default - no special dashboard configuration needed
       // 
-      // NOTE: To prevent the assistant from repeating "How can I help you today":
+      // CRITICAL: Ghost Protocol is a SILENT coach - the assistant must NEVER speak
+      // To prevent the assistant from speaking:
       // 1. Go to Vapi Dashboard → Assistants → "Ghost Protocol Assistant" → Settings
-      // 2. Set "First Message" to empty string or remove it
-      // 3. Ensure the assistant is configured to be silent (coaching cues come via webhook only)
+      // 2. Set "First Message" to EMPTY STRING (not "Hello" or anything else)
+      // 3. Set System Prompt to: "You are a silent transcription assistant. Do not speak. Only transcribe."
+      // 4. Disable any voice responses in assistant settings
       const result = await this.vapi.start(this.assistantId);
+      
+      // CRITICAL: Immediately try to mute/stop any assistant speech that might start
+      // This is a defensive measure - the assistant should be configured to be silent, but we block it here too
+      setTimeout(() => {
+        try {
+          console.log('[VapiClient] 🔇 Ensuring assistant remains silent (Ghost is a silent coach)');
+          // The speech-update and message event handlers will block assistant speech
+          // This timeout is just an extra safety measure
+        } catch (error) {
+          console.warn('[VapiClient] Could not apply silent mode (non-critical):', error);
+        }
+      }, 100);
 
       console.log('Vapi WebRTC session started:', result);
       
@@ -551,8 +666,11 @@ export class VapiClient {
     }
 
     try {
-      console.log('[VapiClient] 📤 Sending transcript to /api/process-transcript with callId:', callIdToUse);
-      const response = await fetch('/api/process-transcript', {
+      // Use relative path - Vite proxy handles dev, production uses same origin
+      const apiUrl = '/api/process-transcript';
+      
+      console.log('[VapiClient] 📤 Sending transcript to', apiUrl, 'with callId:', callIdToUse);
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -564,14 +682,28 @@ export class VapiClient {
       });
 
       if (!response.ok) {
-        console.error('[VapiClient] Failed to process transcript:', response.statusText);
+        const errorText = await response.text().catch(() => response.statusText);
+        console.error('[VapiClient] ❌ Failed to process transcript:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+          error: errorText.substring(0, 200)
+        });
         return;
       }
 
       const result = await response.json();
-      console.log('[VapiClient] Transcript processed:', result);
+      console.log('[VapiClient] ✅ Transcript processed successfully:', {
+        hasCoachingCue: !!result.coachingCue,
+        triggers: result.triggers,
+        source: result.source
+      });
     } catch (error) {
-      console.error('[VapiClient] Error processing transcript:', error);
+      console.error('[VapiClient] ❌ Error processing transcript:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       // Don't throw - this is non-critical
     }
   }

@@ -10,10 +10,10 @@ const statusCopy = {
 };
 
 const formatBytes = (bytes) => {
-  if (!bytes) return '0 B';
+  if (!bytes || bytes === 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / 1024 ** i).toFixed(1)} ${units[i]}`;
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 };
 
 export const KnowledgeBaseModal = ({
@@ -23,18 +23,24 @@ export const KnowledgeBaseModal = ({
   onUpload,
   onRemove,
   limitReached,
-  maxDocuments,
+  maxSizeBytes,
+  totalSize = 0,
   planDetails,
   onUpgradeClick
 }) => {
   const [error, setError] = useState(null);
-  const canUpload = (planDetails?.entitlements?.kbLimit ?? 0) > 0;
-  const limitLabel =
-    !canUpload || maxDocuments === undefined
-      ? '0'
-      : maxDocuments === Number.POSITIVE_INFINITY
-      ? '∞'
-      : String(maxDocuments);
+  const canUpload = (planDetails?.entitlements?.kbSizeLimit ?? 0) > 0;
+  
+  // Format size display
+  const formatSizeUsage = () => {
+    if (!canUpload || maxSizeBytes === undefined) {
+      return '0 B / 0 B';
+    }
+    if (maxSizeBytes === Number.POSITIVE_INFINITY) {
+      return `${formatBytes(totalSize)} / ∞`;
+    }
+    return `${formatBytes(totalSize)} / ${formatBytes(maxSizeBytes)}`;
+  };
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
@@ -65,7 +71,7 @@ export const KnowledgeBaseModal = ({
       <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
         <span>Plan: {planDetails?.label ?? 'Guest'}</span>
         <span>
-          {canUpload ? `${documents.length}/${limitLabel} docs used` : 'Locked for guest tier'}
+          {canUpload ? formatSizeUsage() : 'Locked for guest tier'}
         </span>
       </div>
 
@@ -100,8 +106,8 @@ export const KnowledgeBaseModal = ({
             <ShieldAlert className="w-4 h-4 text-yellow-400" />
             <span>
               {canUpload
-                ? 'Document cap reached. Upgrade for more storage.'
-                : 'Knowledge Base is available starting on the Trial plan.'}
+                ? 'Storage limit reached. Upgrade for more capacity.'
+                : 'Knowledge Base is available starting on the Free plan.'}
             </span>
           </div>
           {onUpgradeClick && (

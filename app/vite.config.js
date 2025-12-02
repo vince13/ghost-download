@@ -39,7 +39,23 @@ export default defineConfig({
   plugins: [react(), ghostSimPlugin()],
   server: {
     port: 5173,
-    host: '0.0.0.0'
+    host: '0.0.0.0',
+    proxy: {
+      // Proxy API calls to Vercel deployment in development
+      // Handle both /api and /app/api (due to base path)
+      '^/api': {
+        target: 'https://ghost-green.vercel.app',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/app/, '') // Remove /app prefix if present
+      },
+      '^/app/api': {
+        target: 'https://ghost-green.vercel.app',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/app/, '') // Remove /app prefix
+      }
+    }
   },
   build: {
     outDir: 'dist'

@@ -17,9 +17,9 @@ export const ghostScenarios = {
       payload: { type: 'suggestion', text: 'Use STAR. Highlight collaboration + resolution.' }
     }
   ],
-  dating: [
-    { delay: 2200, payload: { type: 'transcript', text: 'Date: I love spontaneous trips.' } },
-    { delay: 3200, payload: { type: 'suggestion', text: 'Share your weekend getaway story.' } }
+  negotiation: [
+    { delay: 2200, payload: { type: 'transcript', text: 'Counterparty: We need better terms on this contract.' } },
+    { delay: 3200, payload: { type: 'suggestion', text: 'Focus on mutual value. Ask: "What specific terms would make this work for both of us?"' } }
   ]
 };
 

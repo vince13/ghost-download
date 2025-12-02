@@ -4,8 +4,10 @@ import { getPlanDetails } from '../constants/planConfig.js';
 /**
  * Hook to check user entitlements based on their plan
  * Returns helper functions to check if features are available
+ * @param {Object} planDetails - Plan details from useUserProfile
+ * @param {Object} user - Firebase user object (optional, used to check if user is anonymous)
  */
-export const useEntitlements = (planDetails) => {
+export const useEntitlements = (planDetails, user = null) => {
   const entitlements = useMemo(() => {
     try {
       if (!planDetails) {
@@ -31,30 +33,49 @@ export const useEntitlements = (planDetails) => {
 
   const canUseTTSWhispers = useMemo(() => {
     try {
-      // TTS whispers available for trial+ plans
-      const plan = planDetails?.label?.toLowerCase() || 'guest';
-      return plan !== 'guest';
+      // TTS whispers available for all logged-in users (Free, Starter, Founders, Enterprise)
+      // Only blocked for anonymous users
+      if (!planDetails) {
+        return false; // No plan details = not logged in
+      }
+      // Block for anonymous users (they get Free plan details but shouldn't have TTS)
+      if (user?.isAnonymous) {
+        return false;
+      }
+      // All logged-in users (free, starter, founders, enterprise) have access
+      const plan = planDetails?.label?.toLowerCase();
+      return ['free', 'starter', 'founders club', 'enterprise'].includes(plan);
     } catch (error) {
       console.error('[useEntitlements] Error checking TTS whispers access:', error);
       return false;
     }
-  }, [planDetails]);
+  }, [planDetails, user]);
 
   const canExportSessions = useMemo(() => {
     try {
-      // Export available for trial+ plans
-      const plan = planDetails?.label?.toLowerCase() || 'guest';
-      return plan !== 'guest';
+      // Session export available for all logged-in users (Free, Starter, Founders, Enterprise)
+      // Only blocked for anonymous users
+      if (!planDetails) {
+        return false; // No plan details = not logged in
+      }
+      // Block for anonymous users (they get Free plan details but shouldn't have export)
+      if (user?.isAnonymous) {
+        return false;
+      }
+      // All logged-in users (free, starter, founders, enterprise) have access
+      const plan = planDetails?.label?.toLowerCase();
+      return ['free', 'starter', 'founders club', 'enterprise'].includes(plan);
     } catch (error) {
       console.error('[useEntitlements] Error checking export access:', error);
       return false;
     }
-  }, [planDetails]);
+  }, [planDetails, user]);
 
   const canAccessKnowledgeBase = useMemo(() => {
     try {
-      const limit = entitlements?.kbLimit ?? 0;
-      return limit > 0;
+      // Support both old kbLimit (document count) and new kbSizeLimit (bytes)
+      const sizeLimit = entitlements?.kbSizeLimit ?? entitlements?.kbLimit ?? 0;
+      return sizeLimit > 0;
     } catch (error) {
       console.error('[useEntitlements] Error checking KB access:', error);
       return false;
