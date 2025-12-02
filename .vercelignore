@@ -1,0 +1,27 @@
+# Vercel ignore file - prevents these from being uploaded
+
+# Dependencies (869MB)
+node_modules/
+**/node_modules/
+
+# Electron build outputs (644MB - too large, use GitHub Releases)
+dist/
+app/dist/
+app/dist-electron/
+dist-electron/
+
+# Build artifacts
+*.dmg
+*.zip
+*.exe
+*.AppImage
+*.deb
+*.blockmap
+
+# Large files
+landing/public/downloads/*.dmg
+landing/public/downloads/*.zip
+landing/public/downloads/*.exe
+landing/public/downloads/*.AppImage
+landing/public/downloads/*.deb
+
