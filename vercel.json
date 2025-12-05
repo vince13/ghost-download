@@ -1,55 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "landing/package.json",
-      "use": "@vercel/next"
-    },
-    {
-      "src": "app/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    },
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/app/payment-(success|cancel)",
-      "dest": "/app/index.html"
-    },
-    {
-      "src": "/payment-(success|cancel)",
-      "dest": "/app/index.html"
-    },
-    {
-      "src": "/app",
-      "dest": "/app/index.html"
-    },
-    {
-      "src": "/app/(.*)",
-      "dest": "/app/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/_next/(.*)",
-      "dest": "/landing/_next/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/landing/$1",
-      "check": true
-    }
-  ]
+  "buildCommand": "cd landing && npm run build",
+  "outputDirectory": "landing/.next",
+  "installCommand": "cd landing && npm install",
+  "framework": "nextjs"
 }
-

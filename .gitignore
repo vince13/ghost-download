@@ -53,3 +53,4 @@ landing/public/downloads/*.zip
 landing/public/downloads/*.exe
 landing/public/downloads/*.AppImage
 landing/public/downloads/*.deb
+landing/.next
