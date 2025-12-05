@@ -230,14 +230,14 @@ export default function Home() {
                   </div>
                 </div>
                 <a
-                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost%20Protocol-0.1.1-arm64.dmg"
+                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost.Protocol-0.1.1-arm64.dmg"
                   className="block w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-center font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Download DMG
                 </a>
                 <a
-                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost%20Protocol-0.1.1-arm64-mac.zip"
+                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost.Protocol-0.1.1-arm64-mac.zip"
                   className="block w-full mt-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-center text-sm transition-colors"
                 >
                   Download ZIP
@@ -256,14 +256,14 @@ export default function Home() {
                   </div>
                 </div>
                 <a
-                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost%20Protocol%20Setup%200.1.1.exe"
+                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost.Protocol.Setup.0.1.1.exe"
                   className="block w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-center font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Download Installer
                 </a>
                 <a
-                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost%20Protocol%200.1.1.exe"
+                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost.Protocol.0.1.1.exe"
                   className="block w-full mt-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-center text-sm transition-colors"
                 >
                   Download Portable
@@ -282,7 +282,7 @@ export default function Home() {
                   </div>
                 </div>
                 <a
-                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost%20Protocol-0.1.1.AppImage"
+                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost.Protocol-0.1.1.AppImage"
                   className="block w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-center font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
