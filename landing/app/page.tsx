@@ -282,14 +282,14 @@ export default function Home() {
                   </div>
                 </div>
                 <a
-                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.0/ghost-0.1.0.AppImage"
+                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/Ghost%20Protocol-0.1.1.AppImage"
                   className="block w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-center font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Download AppImage
                 </a>
                 <a
-                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.0/ghost-protocol_0.1.0_amd64.deb"
+                  href="https://github.com/vince13/ghost-download/releases/download/v0.1.1/ghost_0.1.1_amd64.deb"
                   className="block w-full mt-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-center text-sm transition-colors"
                 >
                   Download DEB
