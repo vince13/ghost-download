@@ -39,7 +39,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/landing/$1",
+      "dest": "/$1",
       "continue": true
     }
   ]
