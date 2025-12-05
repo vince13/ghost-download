@@ -22,10 +22,12 @@ function AppRouter() {
   return <App />;
 }
 
+const basename = import.meta.env.MODE === 'electron' ? '/' : '/app';
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter basename="/app">
+      <BrowserRouter basename={basename}>
         <Routes>
           <Route path="/" element={<AppRouter />} />
           <Route path="/hud-overlay" element={<HudOverlayPage />} />
