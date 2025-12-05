@@ -75,6 +75,7 @@ export default async function handler(req, res) {
 
 /**
  * Handle successful checkout completion
+ * IMPORTANT: Only upgrade users if payment_status is 'paid'
  */
 async function handleCheckoutCompleted(session) {
   const { userId, plan } = session.metadata || {};
@@ -84,7 +85,13 @@ async function handleCheckoutCompleted(session) {
     return;
   }
 
-  console.log(`[stripe-webhook] Upgrading user ${userId} to plan: ${plan}`);
+  // CRITICAL: Only upgrade if payment is actually paid
+  if (session.payment_status !== 'paid') {
+    console.log(`[stripe-webhook] Checkout session ${session.id} has payment_status '${session.payment_status}', not 'paid'. Not upgrading user.`);
+    return;
+  }
+
+  console.log(`[stripe-webhook] Upgrading user ${userId} to plan: ${plan} (payment_status: ${session.payment_status})`);
 
   const db = getAdminDb();
   if (!db) {
@@ -124,10 +131,25 @@ async function handleCheckoutCompleted(session) {
 
 /**
  * Handle subscription created/updated (for Starter plan)
+ * IMPORTANT: Only upgrade users if subscription is active and paid
  */
 async function handleSubscriptionUpdated(subscription) {
   const userId = subscription.metadata?.userId;
-  const plan = subscription.metadata?.plan || 'starter';
+  const plan = subscription.metadata?.plan;
+  
+  // CRITICAL: Don't default to 'starter' - require explicit plan in metadata
+  if (!plan) {
+    console.error('[stripe-webhook] Missing plan in subscription metadata. Not upgrading user.');
+    return;
+  }
+  
+  // CRITICAL: Only upgrade if subscription is active/paid
+  // Status can be: active, past_due, canceled, unpaid, incomplete, incomplete_expired, trialing, paused
+  const validStatuses = ['active', 'trialing'];
+  if (!validStatuses.includes(subscription.status)) {
+    console.log(`[stripe-webhook] Subscription ${subscription.id} has status '${subscription.status}', not upgrading user. Only 'active' or 'trialing' subscriptions upgrade users.`);
+    return;
+  }
   
   if (!userId) {
     console.error('[stripe-webhook] Missing userId in subscription metadata');
@@ -150,7 +172,7 @@ async function handleSubscriptionUpdated(subscription) {
       planUpgradedAt: new Date(),
     });
 
-    console.log(`[stripe-webhook] Updated subscription for user ${userId}: ${subscription.status}`);
+    console.log(`[stripe-webhook] Updated subscription for user ${userId} to ${plan} (status: ${subscription.status})`);
   } catch (error) {
     console.error('[stripe-webhook] Error updating subscription:', error);
     throw error;

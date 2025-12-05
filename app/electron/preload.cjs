@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeHud: () => ipcRenderer.send('minimize-hud-window'),
   setHudOpacity: (opacity) => ipcRenderer.send('set-hud-opacity', opacity),
   setHudPosition: (x, y) => ipcRenderer.send('set-hud-position', x, y),
+  setHudSize: (width, height) => ipcRenderer.send('set-hud-size', width, height),
   openMainApp: () => ipcRenderer.send('open-main-app'),
   reopenHud: () => ipcRenderer.send('reopen-hud-window')
 });

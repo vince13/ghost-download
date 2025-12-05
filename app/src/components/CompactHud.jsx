@@ -303,6 +303,38 @@ export function CompactHud({ callId: propCallId, isActive: externalIsActive }) {
       }
     }
   }, [hudOpacity]);
+
+  // Notify Electron when HUD size changes (especially when expanding/collapsing)
+  useEffect(() => {
+    if (!hudContainerRef.current || !window.electronAPI?.setHudSize) return;
+    
+    // Use ResizeObserver to detect size changes
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          window.electronAPI.setHudSize(width, height);
+        }
+      }
+    });
+    
+    resizeObserver.observe(hudContainerRef.current);
+    
+    // Also trigger a resize after a short delay to ensure content is rendered
+    const timeoutId = setTimeout(() => {
+      if (hudContainerRef.current) {
+        const rect = hudContainerRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          window.electronAPI.setHudSize(rect.width, rect.height);
+        }
+      }
+    }, 100);
+    
+    return () => {
+      resizeObserver.disconnect();
+      clearTimeout(timeoutId);
+    };
+  }, [isHudExpanded, hudVisibleSuggestions.length, showHudShortcuts, showHudDockMenu]);
   
   return (
     <div 

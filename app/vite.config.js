@@ -34,31 +34,40 @@ const ghostSimPlugin = () => ({
   }
 });
 
-export default defineConfig({
-  base: '/app/',
-  plugins: [react(), ghostSimPlugin()],
-  server: {
-    port: 5173,
-    host: '0.0.0.0',
-    proxy: {
-      // Proxy API calls to Vercel deployment in development
-      // Handle both /api and /app/api (due to base path)
-      '^/api': {
-        target: 'https://ghost-green.vercel.app',
-        changeOrigin: true,
-        secure: true,
-        rewrite: (path) => path.replace(/^\/app/, '') // Remove /app prefix if present
-      },
-      '^/app/api': {
-        target: 'https://ghost-green.vercel.app',
-        changeOrigin: true,
-        secure: true,
-        rewrite: (path) => path.replace(/^\/app/, '') // Remove /app prefix
+// We use a different base path for Electron builds so that assets
+// are referenced with relative URLs when loaded via file://.
+// - Web / Vercel builds: base '/app/'
+// - Electron builds:     base './'
+export default defineConfig(({ mode }) => {
+  const isElectronBuild = mode === 'electron';
+
+  return {
+    base: isElectronBuild ? './' : '/app/',
+    plugins: [react(), ghostSimPlugin()],
+    server: {
+      port: 5173,
+      host: '0.0.0.0',
+      proxy: {
+        // Proxy API calls to Vercel deployment in development
+        // Handle both /api and /app/api (due to base path)
+        '^/api': {
+          target: 'https://ghost-green.vercel.app',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/app/, '') // Remove /app prefix if present
+        },
+        '^/app/api': {
+          target: 'https://ghost-green.vercel.app',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/app/, '') // Remove /app prefix
+        }
       }
+    },
+    build: {
+      outDir: 'dist'
     }
-  },
-  build: {
-    outDir: 'dist'
-  }
+  };
 });
+
 

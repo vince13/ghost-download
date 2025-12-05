@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, protocol } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync } from 'fs';
+import { readFile } from 'fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -53,12 +54,9 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173/app/');
     mainWindow.webContents.openDevTools();
   } else {
-    const indexPath = join(__dirname, '../dist/index.html');
-    if (existsSync(indexPath)) {
-      mainWindow.loadFile(indexPath);
-    } else {
-      console.error('Production build not found. Run "npm run build" first.');
-    }
+    // In production, load the built index.html from the dist folder.
+    const indexPath = join(app.getAppPath(), 'dist', 'index.html');
+    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.on('closed', () => {
@@ -79,7 +77,7 @@ function createHudWindow() {
   
   hudWindow = new BrowserWindow({
     width: 384, // Match w-96 (24rem = 384px) - exact content width
-    height: 150, // Start smaller - will auto-resize to content
+    height: 500, // Start larger to accommodate full expanded HUD with opacity slider
     x: width - 404, // Position on right side (384 + 20px margin)
     y: 100,
     title: 'Ghost HUD',
@@ -128,14 +126,10 @@ function createHudWindow() {
     hudWindow.loadURL('http://localhost:5173/app/hud-overlay');
     // hudWindow.webContents.openDevTools(); // Uncomment for debugging
   } else {
-    // In production, load the built app with the HUD overlay route
-    const indexPath = join(__dirname, '../dist/index.html');
-    if (existsSync(indexPath)) {
-      // Load with hash routing for HUD overlay
-      hudWindow.loadFile(indexPath, { hash: '#hud-overlay' });
-    } else {
-      console.error('Production build not found. Run "npm run build" first.');
-    }
+    // In production, load the same built index.html from the dist folder and use
+    // hash routing to show the HUD overlay entry point.
+    const indexPath = join(app.getAppPath(), 'dist', 'index.html');
+    hudWindow.loadFile(indexPath, { hash: 'hud-overlay' });
   }
   
   // On macOS, make window visible on all workspaces including fullscreen apps
@@ -216,27 +210,19 @@ function createHudWindow() {
   
   // Resize before showing the window to avoid white background flash
   hudWindow.webContents.once('did-finish-load', () => {
-    // Resize immediately
-    resizeToContent().then((success) => {
-      if (success) {
-        // Show window only after successful resize
-        hudWindow.show();
-      } else {
-        // If resize failed, try again and show anyway
-        setTimeout(() => {
-          resizeToContent();
-          hudWindow.show();
-        }, 100);
-      }
-    });
+    // Show window first (with larger initial size) to allow React to render
+    hudWindow.show();
     
-    // Resize again after a short delay to ensure content is fully rendered
+    // Resize after React has rendered (multiple attempts to catch all render cycles)
     setTimeout(() => {
       resizeToContent();
     }, 100);
     setTimeout(() => {
       resizeToContent();
     }, 300);
+    setTimeout(() => {
+      resizeToContent();
+    }, 600); // Extra delay to ensure opacity slider and all content is rendered
   });
   
   // Also resize when content updates (e.g., when HUD expands/collapses)
@@ -308,6 +294,12 @@ ipcMain.on('set-hud-opacity', (_, opacity) => {
 ipcMain.on('set-hud-position', (_, x, y) => {
   if (hudWindow && typeof x === 'number' && typeof y === 'number') {
     hudWindow.setPosition(Math.round(x), Math.round(y));
+  }
+});
+
+ipcMain.on('set-hud-size', (_, width, height) => {
+  if (hudWindow && typeof width === 'number' && typeof height === 'number') {
+    hudWindow.setSize(Math.ceil(width), Math.ceil(height));
   }
 });
 

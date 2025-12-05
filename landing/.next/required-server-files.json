@@ -99,7 +99,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "/Users/ciera/Desktop/GHOST/landing",
+    "outputFileTracingRoot": "/Users/ciera/Desktop/GHOST",
     "cacheComponents": false,
     "cacheLife": {
       "default": {
@@ -289,12 +289,12 @@
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.ts",
     "turbopack": {
-      "root": "/Users/ciera/Desktop/GHOST/landing"
+      "root": "/Users/ciera/Desktop/GHOST"
     },
     "distDirRoot": ".next"
   },
   "appDir": "/Users/ciera/Desktop/GHOST/landing",
-  "relativeAppDir": "",
+  "relativeAppDir": "landing",
   "files": [
     ".next/routes-manifest.json",
     ".next/server/pages-manifest.json",

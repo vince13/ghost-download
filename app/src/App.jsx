@@ -740,7 +740,7 @@ function App() {
           trackFeature('speaker_mode', next, { source: 'hotkey' });
           return next;
         });
-        break;
+            break;
       default:
         break;
     }
@@ -1321,8 +1321,8 @@ function App() {
             if (now - sttErrorAtRef.current > 4000) {
               const friendly = friendlyMessages[error.message] || error.message || 'Microphone issue detected.';
               if (friendlyMessages[error.message]) {
-                addSystemMessage(`Mic: ${friendly}`);
-                sttErrorAtRef.current = now;
+              addSystemMessage(`Mic: ${friendly}`);
+              sttErrorAtRef.current = now;
               }
             }
             if (friendlyMessages[error.message]) {
@@ -1605,24 +1605,24 @@ function App() {
                     )}
                   </button>
                 )}
-                
-                <Button
-                  onClick={isActive ? handleStop : handleStart}
-                  variant={isActive ? 'danger' : 'primary'}
-                  className="w-full sm:w-32 h-12 sm:h-12 text-base sm:text-lg shrink-0 touch-manipulation min-h-[48px] sm:min-h-0"
-                  disabled={!isActive && isAuthLoading}
-                >
-                  {isActive ? (
-                    <>
-                      <MicOff className="w-5 h-5" /> STOP
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-5 h-5" />
-                      {isAuthLoading ? 'SYNCING' : 'START'}
-                    </>
-                  )}
-                </Button>
+
+              <Button
+                onClick={isActive ? handleStop : handleStart}
+                variant={isActive ? 'danger' : 'primary'}
+                className="w-full sm:w-32 h-12 sm:h-12 text-base sm:text-lg shrink-0 touch-manipulation min-h-[48px] sm:min-h-0"
+                disabled={!isActive && isAuthLoading}
+              >
+                {isActive ? (
+                  <>
+                    <MicOff className="w-5 h-5" /> STOP
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-5 h-5" />
+                    {isAuthLoading ? 'SYNCING' : 'START'}
+                  </>
+                )}
+              </Button>
               </div>
             </div>
           </Card>
@@ -2152,14 +2152,14 @@ function App() {
               </div>
             </>
           )}
-          </div>
+        </div>
 
-          {showHudTour && activeHudTourStep && (
-            <div
-              className={`absolute w-96 pointer-events-auto ${
-                isHudNearTop ? 'top-full mt-3' : 'bottom-full mb-3'
-              }`}
-            >
+        {showHudTour && activeHudTourStep && (
+          <div
+            className={`absolute w-96 pointer-events-auto ${
+              isHudNearTop ? 'top-full mt-3' : 'bottom-full mb-3'
+            }`}
+          >
             <div className="rounded-2xl border border-blue-500/40 bg-gray-900/95 shadow-xl p-4 text-gray-200 space-y-3">
               <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-gray-400">
                 <span>HUD quick tour</span>
@@ -2196,8 +2196,8 @@ function App() {
                 </div>
               </div>
             </div>
-            </div>
-          )}
+          </div>
+        )}
         </div>
       </div>
       )}
