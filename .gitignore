@@ -54,3 +54,11 @@ landing/public/downloads/*.exe
 landing/public/downloads/*.AppImage
 landing/public/downloads/*.deb
 landing/.next
+public/app/
+public/downloads/*.dmg
+public/downloads/*.zip
+public/downloads/*.exe
+public/downloads/*.AppImage
+public/downloads/*.deb
+electron-app/dist-electron/
+electron-app/dist/

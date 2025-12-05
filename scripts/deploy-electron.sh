@@ -65,11 +65,11 @@ cd ..
 echo ""
 echo "✅ Step 3: Build complete!"
 echo ""
-echo "📦 Build files in app/dist-electron/:"
-ls -lh app/dist-electron/*.{dmg,zip,exe,AppImage,deb} 2>/dev/null | awk '{print "   " $9 " (" $5 ")"}'
+echo "📦 Build files in electron-app/dist-electron/:"
+ls -lh electron-app/dist-electron/*.{dmg,zip,exe,AppImage,deb} 2>/dev/null | awk '{print "   " $9 " (" $5 ")"}'
 
 # Count files
-FILE_COUNT=$(ls -1 app/dist-electron/*.{dmg,zip,exe,AppImage,deb} 2>/dev/null | wc -l | tr -d ' ')
+FILE_COUNT=$(ls -1 electron-app/dist-electron/*.{dmg,zip,exe,AppImage,deb} 2>/dev/null | wc -l | tr -d ' ')
 echo ""
 echo "   Total files: ${FILE_COUNT}"
 
@@ -78,15 +78,15 @@ echo ""
 echo "📋 Next Steps:"
 echo ""
 echo "1. ✅ Test the builds locally:"
-echo "   - macOS: open app/dist-electron/ghost-${VERSION}-arm64.dmg"
-echo "   - Windows: Run app/dist-electron/ghost Setup ${VERSION}.exe"
-echo "   - Linux: chmod +x app/dist-electron/ghost-${VERSION}.AppImage && ./app/dist-electron/ghost-${VERSION}.AppImage"
+echo "   - macOS: open electron-app/dist-electron/ghost-${VERSION}-arm64.dmg"
+echo "   - Windows: Run electron-app/dist-electron/ghost Setup ${VERSION}.exe"
+echo "   - Linux: chmod +x electron-app/dist-electron/ghost-${VERSION}.AppImage && ./electron-app/dist-electron/ghost-${VERSION}.AppImage"
 echo ""
 echo "2. 📤 Create GitHub Release:"
 echo "   - Go to: https://github.com/vince13/ghost-download/releases/new"
 echo "   - Tag: v${VERSION}"
 echo "   - Title: Ghost Protocol v${VERSION}"
-echo "   - Upload all files from app/dist-electron/"
+echo "   - Upload all files from electron-app/dist-electron/"
 echo ""
 echo "3. 🔗 Update download links:"
 echo "   - Edit: landing/app/page.tsx"

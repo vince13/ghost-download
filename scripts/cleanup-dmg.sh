@@ -68,9 +68,9 @@ else
 fi
 
 # Also check for any DMG files that might be locked
-if [ -d "app/dist" ]; then
-  echo "📁 Checking for DMG files in app/dist..."
-  find app/dist -name "*.dmg" -exec echo "  Found: {}" \; 2>/dev/null || true
+if [ -d "electron-app/dist" ]; then
+  echo "📁 Checking for DMG files in electron-app/dist..."
+  find electron-app/dist -name "*.dmg" -exec echo "  Found: {}" \; 2>/dev/null || true
 fi
 
 # Final aggressive cleanup - try to unmount any remaining ghost volumes
