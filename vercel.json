@@ -36,6 +36,11 @@
     {
       "src": "/app/(.*)",
       "dest": "/app/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/landing/$1",
+      "continue": true
     }
   ]
 }
